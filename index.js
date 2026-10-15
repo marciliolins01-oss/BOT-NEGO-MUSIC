@@ -9,18 +9,19 @@ const {
 
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
+
 const youtubeiModule = require('discord-player-youtubei');
 
-console.log('Exportações do pacote:', Object.keys(youtubeiModule));
-console.log('Exportação default:', typeof youtubeiModule.default);
-console.log('YoutubeiExtractor:', typeof youtubeiModule.YoutubeiExtractor);
-
-console.log('Tipo:', typeof YoutubeiExtractor);
-console.log('Valor:', YoutubeiExtractor);
-console.log('YoutubeiExtractor:', typeof YoutubeiExtractor);
-console.log('Identificador:', YoutubeiExtractor?.identifier);
+const YoutubeiExtractor =
+  youtubeiModule.YoutubeiExtractor ??
+  youtubeiModule.default?.YoutubeiExtractor ??
+  youtubeiModule.default;
 
 require('dotenv').config();
+
+if (!process.env.DISCORD_TOKEN) {
+  throw new Error('DISCORD_TOKEN não foi configurado na FadeHost.');
+}
 
 const client = new Client({
   intents: [
@@ -31,13 +32,15 @@ const client = new Client({
 
 const player = new Player(client);
 
+const GUILD_ID = '1329595321533075547';
+
 const comandos = [
   new SlashCommandBuilder()
     .setName('play')
     .setDescription('Pesquisar e tocar música')
     .addStringOption(o =>
       o.setName('musica')
-        .setDescription('Nome da música ou link do YouTube')
+        .setDescription('Nome da música ou link')
         .setRequired(true)
     ),
 
@@ -80,23 +83,40 @@ const comandos = [
 client.once('clientReady', async () => {
   console.log(`🎵 Bot ligado como ${client.user.tag}`);
 
+  // Carrega os extratores padrão.
   try {
     await player.extractors.loadMulti(DefaultExtractors);
-await player.extractors.register(YoutubeiExtractor);
-console.log('🎶 Extratores carregados!');
+    console.log('✅ Extratores padrão carregados!');
   } catch (error) {
-    console.error('Erro ao carregar extratores:', error);
+    console.error('Erro nos extratores padrão:', error);
   }
 
+  // Tenta registrar o extrator do YouTube.
+  try {
+    console.log(
+      'Exportações do pacote YouTube:',
+      Object.keys(youtubeiModule)
+    );
+
+    if (typeof YoutubeiExtractor !== 'function') {
+      throw new Error(
+        'YoutubeiExtractor não foi encontrado nas exportações do pacote.'
+      );
+    }
+
+    await player.extractors.register(YoutubeiExtractor);
+    console.log('✅ Extrator do YouTube registrado!');
+  } catch (error) {
+    console.error('Erro no extrator do YouTube:', error);
+  }
+
+  // Registra os comandos do servidor.
   try {
     const rest = new REST({ version: '10' })
       .setToken(process.env.DISCORD_TOKEN);
 
     await rest.put(
-      Routes.applicationGuildCommands(
-        client.user.id,
-        '1329595321533075547'
-      ),
+      Routes.applicationGuildCommands(client.user.id, GUILD_ID),
       { body: comandos }
     );
 
@@ -106,6 +126,7 @@ console.log('🎶 Extratores carregados!');
   }
 });
 
+// Aviso quando uma música começar.
 player.events.on('playerStart', (queue, track) => {
   console.log(`🎶 Começou a tocar: ${track.title}`);
 
@@ -122,11 +143,13 @@ player.events.on('playerError', (queue, error) => {
   console.error('Erro ao tocar áudio:', error);
 });
 
+// Comandos de música.
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
+  if (!interaction.guild) return;
 
   const nome = interaction.commandName;
-  const guild = interaction.guild;
+  const guildId = interaction.guild.id;
 
   try {
     if (nome === 'play') {
@@ -141,7 +164,7 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.deferReply();
 
-      const musica = interaction.options.getString('musica');
+      const musica = interaction.options.getString('musica', true);
 
       await player.play(canal, musica, {
         nodeOptions: {
@@ -158,11 +181,11 @@ client.on('interactionCreate', async interaction => {
       });
 
       return interaction.editReply(
-        `🔎 Pedido enviado: **${musica}**. Vou tentar carregar o áudio!`
+        `🔎 Pedido recebido: **${musica}**.`
       );
     }
 
-    const fila = useQueue(guild?.id);
+    const fila = useQueue(guildId);
 
     if (!fila) {
       return interaction.reply({
@@ -187,7 +210,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (nome === 'stop') {
-      fila.delete();
+      await fila.delete();
       return interaction.reply('⏹️ Reprodução encerrada!');
     }
 
@@ -211,16 +234,18 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (nome === 'volume') {
-      const valor = interaction.options.getInteger('valor');
+      const valor = interaction.options.getInteger('valor', true);
       fila.node.setVolume(valor);
 
-      return interaction.reply(`🔊 Volume ajustado para ${valor}%!`);
+      return interaction.reply(
+        `🔊 Volume ajustado para ${valor}%!`
+      );
     }
   } catch (error) {
-    console.error('Erro no comando:', error);
+    console.error(`Erro no comando /${nome}:`, error);
 
     const mensagem =
-      '❌ Não consegui executar esse comando. Tenta novamente com o nome da música ou um link direto do vídeo.';
+      '❌ Não consegui executar esse comando. Verifica se há música disponível e tenta novamente.';
 
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply(mensagem).catch(() => {});
