@@ -9,8 +9,7 @@ const {
 
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
-const { YouTubeDlpExtractor } = require('discord-player-youtubedlp');
-
+const { YoutubeiExtractor } = require('discord-player-youtubei');
 require('dotenv').config();
 
 const client = new Client({
