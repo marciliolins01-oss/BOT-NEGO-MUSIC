@@ -29,6 +29,16 @@ const client = new Client({
 
 const player = new Player(client);
 
+console.log('📋 Dependências do player:', player.scanDeps());
+
+player.on('debug', mensagem => {
+  console.log('[PLAYER DEBUG]', mensagem);
+});
+
+player.events.on('debug', (fila, mensagem) => {
+  console.log('[FILA DEBUG]', mensagem);
+});
+
 const GUILD_ID = '1329595321533075547';
 
 const comandos = [
