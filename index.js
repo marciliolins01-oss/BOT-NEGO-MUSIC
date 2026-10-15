@@ -73,8 +73,8 @@ client.once('clientReady', async () => {
 
   try {
     await player.extractors.loadMulti(DefaultExtractors);
-    await player.extractors.register(YoutubeiExtractor, {});
-    console.log('🎶 Extratores carregados!');
+await player.extractors.register(YoutubeiExtractor);
+console.log('🎶 Extratores carregados!');
   } catch (error) {
     console.error('Erro ao carregar extratores:', error);
   }
