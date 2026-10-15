@@ -10,6 +10,8 @@ const {
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
 const { YoutubeiExtractor } = require('discord-player-youtubei');
+console.log('YoutubeiExtractor:', typeof YoutubeiExtractor);
+console.log('Identificador:', YoutubeiExtractor?.identifier);
 
 require('dotenv').config();
 
