@@ -10,6 +10,9 @@ const {
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
 const { YoutubeiExtractor } = require('discord-player-youtubei');
+
+console.log('Tipo:', typeof YoutubeiExtractor);
+console.log('Valor:', YoutubeiExtractor);
 console.log('YoutubeiExtractor:', typeof YoutubeiExtractor);
 console.log('Identificador:', YoutubeiExtractor?.identifier);
 
