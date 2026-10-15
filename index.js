@@ -12,10 +12,7 @@ const { DefaultExtractors } = require('@discord-player/extractor');
 
 const youtubeiModule = require('discord-player-youtubei');
 
-const YoutubeiExtractor =
-  youtubeiModule.YoutubeiExtractor ??
-  youtubeiModule.default?.YoutubeiExtractor ??
-  youtubeiModule.default;
+const YoutubeExtractor = youtubeiModule.YoutubeExtractor;
 
 require('dotenv').config();
 
@@ -98,13 +95,15 @@ client.once('clientReady', async () => {
       Object.keys(youtubeiModule)
     );
 
-    if (typeof YoutubeiExtractor !== 'function') {
-      throw new Error(
-        'YoutubeiExtractor não foi encontrado nas exportações do pacote.'
-      );
-    }
+    if (typeof YoutubeExtractor !== 'function') {
+  throw new Error('YoutubeExtractor não foi encontrado no pacote.');
+}
 
-    await player.extractors.register(YoutubeiExtractor);
+console.log('Identificador:', YoutubeExtractor.identifier);
+
+await player.extractors.register(YoutubeExtractor);
+
+console.log('✅ Extrator do YouTube registrado!');
     console.log('✅ Extrator do YouTube registrado!');
   } catch (error) {
     console.error('Erro no extrator do YouTube:', error);
