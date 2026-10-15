@@ -9,7 +9,11 @@ const {
 
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
-const { YoutubeiExtractor } = require('discord-player-youtubei');
+const youtubeiModule = require('discord-player-youtubei');
+
+console.log('Exportações do pacote:', Object.keys(youtubeiModule));
+console.log('Exportação default:', typeof youtubeiModule.default);
+console.log('YoutubeiExtractor:', typeof youtubeiModule.YoutubeiExtractor);
 
 console.log('Tipo:', typeof YoutubeiExtractor);
 console.log('Valor:', YoutubeiExtractor);
