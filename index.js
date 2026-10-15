@@ -27,8 +27,9 @@ const client = new Client({
   ]
 });
 
-const player = new Player(client);
 ```js
+const player = new Player(client);
+
 console.log('[DIAGNÓSTICO] Dependências:', player.scanDeps());
 
 player.on('debug', (mensagem) => {
@@ -39,16 +40,6 @@ player.events.on('debug', (fila, mensagem) => {
   console.log('[VOZ DEBUG]', mensagem);
 });
 ```
-
-console.log('📋 Dependências do player:', player.scanDeps());
-
-player.on('debug', mensagem => {
-  console.log('[PLAYER DEBUG]', mensagem);
-});
-
-player.events.on('debug', (fila, mensagem) => {
-  console.log('[FILA DEBUG]', mensagem);
-});
 
 const GUILD_ID = '1329595321533075547';
 
