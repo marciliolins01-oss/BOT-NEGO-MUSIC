@@ -91,6 +91,8 @@ const comandos = [
 
 client.once('clientReady', async () => {
   console.log(`🎵 Bot ligado como ${client.user.tag}`);
+  console.log('[TESTE] PID do processo:', process.pid);
+console.log('[TESTE] Dependências:', player.scanDeps());
 
   // Carrega os extratores padrão.
   try {
