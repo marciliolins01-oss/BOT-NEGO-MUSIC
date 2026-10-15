@@ -127,11 +127,18 @@ console.log('✅ Extrator do YouTube registrado!');
 
 // Aviso quando uma música começar.
 player.events.on('playerStart', (queue, track) => {
-  console.log(`🎶 Começou a tocar: ${track.title}`);
+  console.log('🎶 Faixa iniciada:', {
+    title: track?.title,
+    url: track?.url,
+    duration: track?.duration,
+    extractor: track?.extractor
+  });
+
+  const titulo = track?.title || 'Título não identificado';
 
   queue.metadata?.channel?.send(
-    `🎵 Tocando agora: **${track.title}**`
-  ).catch(() => {});
+    `🎵 Tocando agora: **${titulo}**`
+  ).catch(console.error);
 });
 
 player.events.on('error', (queue, error) => {
