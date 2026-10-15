@@ -178,9 +178,14 @@ client.on('interactionCreate', async interaction => {
         });
       }
 
-      await interaction.deferReply();
-
       const musica = interaction.options.getString('musica', true);
+
+try {
+  await interaction.deferReply();
+} catch (erro) {
+  console.error('Falha ao responder à interação:', erro.code, erro.message);
+  return;
+}
 
       await player.play(canal, musica, {
         nodeOptions: {
