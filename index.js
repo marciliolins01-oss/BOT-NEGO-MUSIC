@@ -73,12 +73,7 @@ client.once('clientReady', async () => {
   try {
     await player.extractors.loadMulti(DefaultExtractors);
 
-    await player.extractors.register(YouTubeDlpExtractor, {
-      searchLimit: 5,
-      agent: {
-        autoCookiesFromBrowser: false
-      }
-    });
+    await player.extractors.register(YoutubeiExtractor, {});
 
     console.log('🎶 Extratores carregados!');
   } catch (error) {
