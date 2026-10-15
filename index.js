@@ -10,6 +10,7 @@ const {
 const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
 const { YoutubeiExtractor } = require('discord-player-youtubei');
+
 require('dotenv').config();
 
 const client = new Client({
@@ -72,13 +73,10 @@ client.once('clientReady', async () => {
 
   try {
     await player.extractors.loadMulti(DefaultExtractors);
-
     await player.extractors.register(YoutubeiExtractor, {});
-
     console.log('🎶 Extratores carregados!');
   } catch (error) {
-    ```js
-console.error('Erro ao carregar extratores:', error);
+    console.error('Erro ao carregar extratores:', error);
   }
 
   try {
@@ -101,7 +99,6 @@ console.error('Erro ao carregar extratores:', error);
 
 player.events.on('playerStart', (queue, track) => {
   console.log(`🎶 Começou a tocar: ${track.title}`);
-```
 
   queue.metadata?.channel?.send(
     `🎵 Tocando agora: **${track.title}**`
@@ -187,6 +184,7 @@ client.on('interactionCreate', async interaction => {
 
     if (nome === 'queue') {
       const musicas = fila.tracks.toArray();
+
       const lista = musicas
         .slice(0, 10)
         .map((m, i) => `${i + 1}. ${m.title}`)
@@ -212,14 +210,8 @@ client.on('interactionCreate', async interaction => {
   } catch (error) {
     console.error('Erro no comando:', error);
 
-    
-const mensagem =
-  '❌ **Não consegui carregar esse link!**\n\n' +
-  'O link do YouTube pode conter uma playlist que não consegui processar.\n' +
-  '💡 Tenta enviar o link direto do vídeo, sem a parte `?list=...`.\n\n' +
-  'Exemplo:\n' +
-  '`https://youtu.be/0fR3BcZLwo0`';
-
+    const mensagem =
+      '❌ Não consegui executar esse comando. Tenta novamente com o nome da música ou um link direto do vídeo.';
 
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply(mensagem).catch(() => {});
