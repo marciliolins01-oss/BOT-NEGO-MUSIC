@@ -77,7 +77,8 @@ client.once('clientReady', async () => {
 
     console.log('🎶 Extratores carregados!');
   } catch (error) {
-    console.error('Erro ao carregar extratores:', error);
+    ```js
+console.error('Erro ao carregar extratores:', error);
   }
 
   try {
@@ -86,9 +87,9 @@ client.once('clientReady', async () => {
 
     await rest.put(
       Routes.applicationGuildCommands(
-  client.user.id,
-  '1329595321533075547'
-)
+        client.user.id,
+        '1329595321533075547'
+      ),
       { body: comandos }
     );
 
@@ -100,6 +101,7 @@ client.once('clientReady', async () => {
 
 player.events.on('playerStart', (queue, track) => {
   console.log(`🎶 Começou a tocar: ${track.title}`);
+```
 
   queue.metadata?.channel?.send(
     `🎵 Tocando agora: **${track.title}**`
