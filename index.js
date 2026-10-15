@@ -1,23 +1,25 @@
 
+require('dotenv').config();
+
 const {
   Client,
   GatewayIntentBits,
+  SlashCommandBuilder,
   REST,
   Routes,
-  SlashCommandBuilder
+  PermissionFlagsBits
 } = require('discord.js');
 
 const { Player, useQueue } = require('discord-player');
-const { DefaultExtractors } = require('@discord-player/extractor');
+const { YouTubeDlpExtractor } = require('discord-player-youtubedlp');
 
-const youtubeiModule = require('discord-player-youtubei');
+const TOKEN = process.env.DISCORD_TOKEN;
+const CLIENT_ID = process.env.CLIENT_ID;
+const GUILD_ID = process.env.GUILD_ID || '1329595321533075547';
 
-const YoutubeExtractor = youtubeiModule.YoutubeExtractor;
-
-require('dotenv').config();
-
-if (!process.env.DISCORD_TOKEN) {
-  throw new Error('DISCORD_TOKEN não foi configurado na FadeHost.');
+if (!TOKEN || !CLIENT_ID) {
+  console.error('❌ Configure DISCORD_TOKEN e CLIENT_ID no arquivo .env.');
+  process.exit(1);
 }
 
 const client = new Client({
@@ -27,169 +29,153 @@ const client = new Client({
   ]
 });
 
-```js
 const player = new Player(client);
-
-console.log('[DIAGNÓSTICO] Dependências:', player.scanDeps());
-
-player.on('debug', (mensagem) => {
-  console.log('[PLAYER DEBUG]', mensagem);
-});
-
-player.events.on('debug', (fila, mensagem) => {
-  console.log('[VOZ DEBUG]', mensagem);
-});
-```
-
-const GUILD_ID = '1329595321533075547';
 
 const comandos = [
   new SlashCommandBuilder()
     .setName('play')
     .setDescription('Pesquisar e tocar música')
-    .addStringOption(o =>
-      o.setName('musica')
-        .setDescription('Nome da música ou link')
+    .addStringOption(option =>
+      option
+        .setName('musica')
+        .setDescription('Nome da música ou link do YouTube')
         .setRequired(true)
     ),
 
   new SlashCommandBuilder()
     .setName('pause')
-    .setDescription('Pausar música'),
+    .setDescription('Pausar a música'),
 
   new SlashCommandBuilder()
     .setName('resume')
-    .setDescription('Continuar música'),
+    .setDescription('Continuar a música'),
 
   new SlashCommandBuilder()
     .setName('skip')
-    .setDescription('Pular música'),
+    .setDescription('Pular a música atual'),
 
   new SlashCommandBuilder()
     .setName('stop')
-    .setDescription('Parar música'),
+    .setDescription('Parar a música'),
 
   new SlashCommandBuilder()
     .setName('queue')
-    .setDescription('Ver fila de músicas'),
+    .setDescription('Ver a fila de músicas'),
 
   new SlashCommandBuilder()
     .setName('nowplaying')
-    .setDescription('Ver música atual'),
+    .setDescription('Ver a música atual'),
 
   new SlashCommandBuilder()
     .setName('volume')
-    .setDescription('Alterar volume')
-    .addIntegerOption(o =>
-      o.setName('valor')
+    .setDescription('Alterar o volume')
+    .addIntegerOption(option =>
+      option
+        .setName('valor')
         .setDescription('Volume de 1 a 100')
         .setMinValue(1)
         .setMaxValue(100)
         .setRequired(true)
     )
-].map(c => c.toJSON());
+].map(command => command.toJSON());
 
 client.once('clientReady', async () => {
   console.log(`🎵 Bot ligado como ${client.user.tag}`);
-  console.log('[TESTE] PID do processo:', process.pid);
-console.log('[TESTE] Dependências:', player.scanDeps());
+  console.log('[INICIALIZAÇÃO] Processo:', process.pid);
 
-  // Carrega os extratores padrão.
   try {
-    await player.extractors.loadMulti(DefaultExtractors);
-    console.log('✅ Extratores padrão carregados!');
-  } catch (error) {
-    console.error('Erro nos extratores padrão:', error);
-  }
+    console.log('[PLAYER] Registrando extrator do YouTube...');
 
-  // Tenta registrar o extrator do YouTube.
-  try {
-    console.log(
-      'Exportações do pacote YouTube:',
-      Object.keys(youtubeiModule)
-    );
+    await player.extractors.register(YouTubeDlpExtractor, {});
 
-    if (typeof YoutubeExtractor !== 'function') {
-  throw new Error('YoutubeExtractor não foi encontrado no pacote.');
-}
-
-console.log('Identificador:', YoutubeExtractor.identifier);
-
-await player.extractors.register(YoutubeExtractor);
-
-console.log('✅ Extrator do YouTube registrado!');
     console.log('✅ Extrator do YouTube registrado!');
   } catch (error) {
-    console.error('Erro no extrator do YouTube:', error);
+    console.error('❌ Erro ao registrar extrator:', error);
+    return;
   }
 
-  // Registra os comandos do servidor.
   try {
-    const rest = new REST({ version: '10' })
-      .setToken(process.env.DISCORD_TOKEN);
+    const rest = new REST({ version: '10' }).setToken(TOKEN);
 
     await rest.put(
-      Routes.applicationGuildCommands(client.user.id, GUILD_ID),
+      Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID),
       { body: comandos }
     );
 
-    console.log('✅ Comandos registrados!');
+    console.log('✅ Comandos registrados no servidor!');
   } catch (error) {
-    console.error('Erro ao registrar comandos:', error);
+    console.error('❌ Erro ao registrar comandos:', error);
   }
 });
 
-// Aviso quando uma música começar.
 player.events.on('playerStart', (queue, track) => {
-  console.log('🎶 Faixa iniciada:', {
-    title: track?.title,
-    url: track?.url,
-    duration: track?.duration,
-    extractor: track?.extractor
-  });
+  console.log('[TOCANDO]', track.title);
 
-  const titulo = track?.title || 'Título não identificado';
+  const canalTexto = queue.metadata?.channel;
 
-  queue.metadata?.channel?.send(
-    `🎵 Tocando agora: **${titulo}**`
-  ).catch(console.error);
+  if (canalTexto) {
+    canalTexto.send(`🎶 Tocando agora: **${track.title}**`)
+      .catch(() => {});
+  }
 });
 
 player.events.on('error', (queue, error) => {
-  console.error('Erro no player:', error);
+  console.error('[ERRO NA FILA]', error);
 });
 
 player.events.on('playerError', (queue, error) => {
-  console.error('Erro ao tocar áudio:', error);
+  console.error('[ERRO NA REPRODUÇÃO]', error);
 });
 
-// Comandos de música.
+player.on('error', error => {
+  console.error('[ERRO DO PLAYER]', error);
+});
+
+client.on('error', error => {
+  console.error('[ERRO DO DISCORD]', error);
+});
+
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
-  if (!interaction.guild) return;
 
   const nome = interaction.commandName;
-  const guildId = interaction.guild.id;
+  const guildId = interaction.guildId;
 
   try {
     if (nome === 'play') {
-      const canal = interaction.member?.voice?.channel;
+      await interaction.deferReply();
+
+      const membro = await interaction.guild.members.fetch(
+        interaction.user.id
+      );
+
+      const canal = membro.voice.channel;
 
       if (!canal) {
-        return interaction.reply({
-          content: '❌ Entra em um canal de voz primeiro!',
-          ephemeral: true
-        });
+        return interaction.editReply(
+          '❌ Entra em um canal de voz primeiro!'
+        );
+      }
+
+      const botMembro = await interaction.guild.members.fetchMe();
+      const permissoes = canal.permissionsFor(botMembro);
+
+      if (
+        !permissoes ||
+        !permissoes.has(PermissionFlagsBits.ViewChannel) ||
+        !permissoes.has(PermissionFlagsBits.Connect) ||
+        !permissoes.has(PermissionFlagsBits.Speak)
+      ) {
+        return interaction.editReply(
+          '❌ Preciso das permissões Ver canal, Conectar e Falar nesse canal de voz.'
+        );
       }
 
       const musica = interaction.options.getString('musica', true);
 
-try {
-  await interaction.deferReply();
-} catch (erro) {
-  console.error('Falha ao responder à interação:', erro.code, erro.message);
-  return;
-}
+      console.log(
+        `[PLAY SOLICITADO] Usuário: ${interaction.user.tag} | Música: ${musica} | Canal: ${canal.id}`
+      );
 
       await player.play(canal, musica, {
         nodeOptions: {
@@ -206,7 +192,7 @@ try {
       });
 
       return interaction.editReply(
-        `🔎 Pedido recebido: **${musica}**.`
+        `🔎 Pedido recebido: **${musica}**. Vou tentar carregar a música.`
       );
     }
 
@@ -214,63 +200,88 @@ try {
 
     if (!fila) {
       return interaction.reply({
-        content: '❌ Não tem música na fila!',
+        content: '❌ Não existe uma fila de músicas ativa.',
         ephemeral: true
       });
     }
 
     if (nome === 'pause') {
       fila.node.pause();
+
       return interaction.reply('⏸️ Música pausada!');
     }
 
     if (nome === 'resume') {
       fila.node.resume();
-      return interaction.reply('▶️ Música continuando!');
+
+      return interaction.reply('▶️ Música retomada!');
     }
 
     if (nome === 'skip') {
+      if (!fila.currentTrack) {
+        return interaction.reply({
+          content: '❌ Não tem música tocando agora.',
+          ephemeral: true
+        });
+      }
+
       fila.node.skip();
+
       return interaction.reply('⏭️ Música pulada!');
     }
 
     if (nome === 'stop') {
-      await fila.delete();
-      return interaction.reply('⏹️ Reprodução encerrada!');
+      fila.delete();
+
+      return interaction.reply('⏹️ Reprodução parada e fila encerrada.');
     }
 
     if (nome === 'queue') {
-      const musicas = fila.tracks.toArray();
+      const atual = fila.currentTrack
+        ? `🎶 **Tocando:** ${fila.currentTrack.title}\n`
+        : '';
 
-      const lista = musicas
-        .slice(0, 10)
-        .map((m, i) => `${i + 1}. ${m.title}`)
-        .join('\n');
+      const proximas = fila.tracks.toArray().slice(0, 10);
 
-      return interaction.reply(
-        `🎶 **Próximas músicas**\n${lista || 'Não há próximas músicas.'}`
-      );
+      const lista = proximas.length
+        ? proximas.map((track, index) =>
+            `${index + 1}. ${track.title}`
+          ).join('\n')
+        : 'Nenhuma próxima música na fila.';
+
+      return interaction.reply({
+        content: `${atual}\n**📋 Próximas músicas:**\n${lista}`,
+        allowedMentions: { parse: [] }
+      });
     }
 
     if (nome === 'nowplaying') {
+      if (!fila.currentTrack) {
+        return interaction.reply({
+          content: '❌ Não há música tocando.',
+          ephemeral: true
+        });
+      }
+
       return interaction.reply(
-        `🎧 Tocando: **${fila.currentTrack?.title || 'Nenhuma música'}**`
+        `🎵 **Música atual:** ${fila.currentTrack.title}`
       );
     }
 
     if (nome === 'volume') {
       const valor = interaction.options.getInteger('valor', true);
+
       fila.node.setVolume(valor);
 
-      return interaction.reply(
-        `🔊 Volume ajustado para ${valor}%!`
-      );
+      return interaction.reply(`🔊 Volume ajustado para **${valor}%**.`);
     }
   } catch (error) {
-    console.error(`Erro no comando /${nome}:`, error);
+    console.error(`[ERRO NO COMANDO /${nome}]`, error);
 
     const mensagem =
-      '❌ Não consegui executar esse comando. Verifica se há música disponível e tenta novamente.';
+      nome === 'play'
+        ? '❌ Não consegui carregar a música ou conectar ao canal de voz. Confere o erro no console.'
+        : '❌ Ocorreu um erro ao executar esse comando.';
 
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply(mensagem).catch(() => {});
@@ -283,4 +294,10 @@ try {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+process.on('unhandledRejection', error => {
+  console.error('[ERRO NÃO TRATADO]', error);
+});
+
+client.login(TOKEN).catch(error => {
+  console.error('❌ Não foi possível conectar o bot ao Discord:', error);
+});
