@@ -1,22 +1,15 @@
+
 {
-  "dependencies": {
-    "@discord-player/extractor": "^7.2.0",
-    "@discordjs/builders": "^1.14.1",
-    "@discordjs/voice": "^0.19.2",
-    "@distube/ytdl-core": "^4.16.12",
-    "@snazzah/davey": "^0.1.12",
-    "discord-player": "^7.2.0",
-    "discord-player-youtubedlp": "^1.2.2",
-    "discord-player-youtubei": "^3.1.0",
-    "discord.js": "^14.27.0",
-    "dotenv": "^18.0.8",
-    "ffmpeg-static": "^5.3.0",
-    "simple-ytdl-core": "^1.1.1",
-    "spotify-url-info": "^3.3.3"
+  "name": "nego-music",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
   },
-  "allowScripts": {
-    "esbuild@0.27.7": true,
-    "ffmpeg-static@5.3.0": true,
-    "ytdlp-nodejs@3.4.5": true
+  "dependencies": {
+    "@discordjs/voice": "^0.18.0",
+    "discord.js": "^14.27.0",
+    "dotenv": "^16.4.7",
+    "play-dl": "^1.9.7"
   }
 }
