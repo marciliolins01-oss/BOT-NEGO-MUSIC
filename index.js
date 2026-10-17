@@ -163,7 +163,7 @@ client.on('interactionCreate', async interaction => {
 
       await interaction.deferReply();
 
-      await player.play(canal, musica, {
+      await player.play(canal, `ytsearch:${musica}`, {
         nodeOptions: {
           metadata: { channel: interaction.channel },
           leaveOnEmpty: false,
