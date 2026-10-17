@@ -10,8 +10,12 @@ const { Player, useQueue } = require('discord-player');
 const { DefaultExtractors } = require('@discord-player/extractor');
 require('dotenv').config();
 
-// Configura o caminho do FFmpeg estático
-process.env.FFMPEG_PATH = require('ffmpeg-static');
+// FORÇA O FFMPEG ESTÁTICO PARA O AMBIENTE LINUX DA HOSPEDAGEM
+try {
+  process.env.FFMPEG_PATH = require('ffmpeg-static');
+} catch (e) {
+  console.log('FFmpeg estático não encontrado, usando padrão do sistema.');
+}
 
 const client = new Client({
   intents: [
@@ -31,7 +35,7 @@ const player = new Player(client, {
 player.events.on('playerStart', (queue, track) => {
   const channel = queue.metadata?.channel;
   if (channel) {
-    channel.send(`🎶 A tocar agora: **${track.title}**`).catch(() => {});
+    channel.send(`🎶 Tocando agora: **${track.title}**`).catch(() => {});
   }
 });
 
@@ -57,7 +61,7 @@ const comandos = [
     .setDescription('Pesquisar e tocar música')
     .addStringOption(o =>
       o.setName('musica')
-        .setDescription('Nome da música ou link do YouTube (sem list=)')
+        .setDescription('Ex: Nome da música ou link do YouTube (sem list=)')
         .setRequired(true)
     ),
   new SlashCommandBuilder().setName('pause').setDescription('Pausar música'),
@@ -136,7 +140,7 @@ client.on('interactionCreate', async interaction => {
           leaveOnEmpty: false,
           leaveOnEnd: false,
           leaveOnStop: false,
-          bufferingTimeout: 5000
+          bufferingTimeout: 10000
         }
       });
 
@@ -195,7 +199,7 @@ client.on('interactionCreate', async interaction => {
   } catch (e) {
     console.error('Erro no comando:', e);
 
-    const mensagem = '❌ Erro ao processar a música. Tente pesquisar apenas pelo nome.';
+    const mensagem = '❌ Erro ao processar a música. Tente pesquisar pelo nome exato (ex: `/play DJ Arana`).';
 
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply(mensagem).catch(() => {});
