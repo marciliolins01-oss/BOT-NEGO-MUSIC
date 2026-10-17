@@ -89,7 +89,8 @@ client.once('ready', async () => {
     try {
   console.log('Extratores disponíveis:', DefaultExtractors.length);
 
-  const resultado = await player.extractors.loadMulti(DefaultExtractors);
+  await player.extractors.loadDefault();
+console.log('✅ Extratores padrão carregados!');
 
   console.log('Resultado do carregamento:', resultado);
   console.log('Total registrado:', player.extractors.store.size);
