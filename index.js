@@ -252,7 +252,10 @@ function showQueue(message, serverQueue) {
 
   let queueList = serverQueue.songs
     .slice(0, 10)
-    .map((song, index) => `\${index === 0 ? '▶️ **Tocando agora:**' : `**${index}.**`} \${song.title} \`(${song.duration})\``)
+    .map((song, index) => {
+      const prefixText = index === 0 ? '▶️ **Tocando agora:**' : `**\${index}.**`;
+      return `${prefixText}${song.title} \`(${song.duration})\``;
+    })
     .join('\n');
 
   const embed = new EmbedBuilder()
