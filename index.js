@@ -1,3 +1,4 @@
+
 const {
   Client,
   GatewayIntentBits,
@@ -7,14 +8,15 @@ const {
 } = require('discord.js');
 
 const { Player, useQueue } = require('discord-player');
-const { DefaultExtractors } = require('@discord-player/extractor');
+require('@discord-player/extractor');
 require('dotenv').config();
 
-// FORÇA O FFMPEG ESTÁTICO PARA O AMBIENTE LINUX DA HOSPEDAGEM
+// FFmpeg para a hospedagem Linux
 try {
-  process.env.FFMPEG_PATH = require('ffmpeg-static');
+  const ffmpegPath = require('ffmpeg-static');
+  if (ffmpegPath) process.env.FFMPEG_PATH = ffmpegPath;
 } catch (e) {
-  console.log('FFmpeg estático não encontrado, usando padrão do sistema.');
+  console.log('FFmpeg estático não encontrado:', e.message);
 }
 
 const client = new Client({
@@ -24,55 +26,75 @@ const client = new Client({
   ]
 });
 
-const player = new Player(client, {
-  ytdlOptions: {
-    filter: 'audioonly',
-    highWaterMark: 1 << 25
-  }
-});
+const player = new Player(client);
 
-// Eventos do Player
+// Avisar quando a música começar
 player.events.on('playerStart', (queue, track) => {
   const channel = queue.metadata?.channel;
+
   if (channel) {
     channel.send(`🎶 Tocando agora: **${track.title}**`).catch(() => {});
   }
 });
 
+// Avisar quando uma música entrar na fila
 player.events.on('audioTrackAdd', (queue, track) => {
   const channel = queue.metadata?.channel;
-  if (channel && queue.tracks.size > 0) {
+
+  if (channel) {
     channel.send(`➕ Adicionada à fila: **${track.title}**`).catch(() => {});
   }
 });
 
+// Erros da fila
 player.events.on('error', (queue, error) => {
-  console.error(`[Erro na Fila]:`, error);
+  console.error('[Erro na fila]:', error);
 });
 
+// Erros durante a reprodução
 player.events.on('playerError', (queue, error) => {
-  console.error(`[Erro de Reprodução]:`, error);
+  console.error('[Erro de reprodução]:', error);
   if (queue) queue.node.skip();
 });
 
+// Comandos do bot
 const comandos = [
   new SlashCommandBuilder()
     .setName('play')
     .setDescription('Pesquisar e tocar música')
     .addStringOption(o =>
       o.setName('musica')
-        .setDescription('Ex: Nome da música ou link do YouTube (sem list=)')
+        .setDescription('Nome da música ou link direto')
         .setRequired(true)
     ),
-  new SlashCommandBuilder().setName('pause').setDescription('Pausar música'),
-  new SlashCommandBuilder().setName('resume').setDescription('Continuar música'),
-  new SlashCommandBuilder().setName('skip').setDescription('Pular música'),
-  new SlashCommandBuilder().setName('stop').setDescription('Parar música'),
-  new SlashCommandBuilder().setName('queue').setDescription('Ver fila de músicas'),
-  new SlashCommandBuilder().setName('nowplaying').setDescription('Ver música atual'),
+
+  new SlashCommandBuilder()
+    .setName('pause')
+    .setDescription('Pausar música'),
+
+  new SlashCommandBuilder()
+    .setName('resume')
+    .setDescription('Continuar música'),
+
+  new SlashCommandBuilder()
+    .setName('skip')
+    .setDescription('Pular música'),
+
+  new SlashCommandBuilder()
+    .setName('stop')
+    .setDescription('Parar música'),
+
+  new SlashCommandBuilder()
+    .setName('queue')
+    .setDescription('Ver fila de músicas'),
+
+  new SlashCommandBuilder()
+    .setName('nowplaying')
+    .setDescription('Ver música atual'),
+
   new SlashCommandBuilder()
     .setName('volume')
-    .setDescription('Alterar o volume da música')
+    .setDescription('Alterar o volume')
     .addIntegerOption(o =>
       o.setName('valor')
         .setDescription('Volume de 1 a 100')
@@ -82,24 +104,23 @@ const comandos = [
     )
 ].map(c => c.toJSON());
 
+// Inicialização
 client.once('ready', async () => {
   console.log(`🎵 NEGO MUSIC ligado como ${client.user.tag}`);
 
+  // Carregar os extratores
   try {
-    try {
-  console.log('Extratores disponíveis:', DefaultExtractors.length);
+    await player.extractors.loadDefault();
+    console.log('✅ Extratores padrão carregados!');
+    console.log('Total de extratores:', player.extractors.store.size);
+  } catch (e) {
+    console.error('❌ Erro ao carregar extratores:', e);
+  }
 
-  await player.extractors.loadDefault();
-console.log('✅ Extratores padrão carregados!');
-
-  console.log('Resultado do carregamento:', resultado);
-  console.log('Total registrado:', player.extractors.store.size);
-} catch (e) {
-  console.error('Erro ao carregar extratores:', e);
-}
-
+  // Registrar comandos no Discord
   try {
-    const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
+    const rest = new REST({ version: '10' })
+      .setToken(process.env.DISCORD_TOKEN);
 
     await rest.put(
       Routes.applicationCommands(client.user.id),
@@ -108,10 +129,11 @@ console.log('✅ Extratores padrão carregados!');
 
     console.log('✅ Comandos registrados!');
   } catch (e) {
-    console.error('Erro nos comandos:', e);
+    console.error('❌ Erro nos comandos:', e);
   }
 });
 
+// Processar comandos
 client.on('interactionCreate', async interaction => {
   if (!interaction.isChatInputCommand()) return;
 
@@ -133,14 +155,14 @@ client.on('interactionCreate', async interaction => {
 
       if (musica.includes('list=')) {
         return interaction.reply({
-          content: '⚠️ **Links de playlists não são permitidos!** Envie apenas o link direto da música ou pesquise pelo nome.',
+          content: '⚠️ Links de playlists não são permitidos! Envie o link direto de uma música ou pesquise pelo nome.',
           ephemeral: true
         });
       }
 
       await interaction.deferReply();
 
-      const result = await player.play(canal, musica, {
+      await player.play(canal, musica, {
         nodeOptions: {
           metadata: { channel: interaction.channel },
           leaveOnEmpty: false,
@@ -150,14 +172,16 @@ client.on('interactionCreate', async interaction => {
         }
       });
 
-      return interaction.editReply(`🔎 Processando pedido: **${musica}**`);
+      return interaction.editReply(
+        `🔎 Pedido recebido: **${musica}**`
+      );
     }
 
-    const fila = useQueue(guild.id);
+    const fila = useQueue(guild?.id);
 
     if (!fila) {
       return interaction.reply({
-        content: '❌ Não há nenhuma música a tocar neste momento!',
+        content: '❌ Não há nenhuma música na fila neste momento!',
         ephemeral: true
       });
     }
@@ -169,7 +193,7 @@ client.on('interactionCreate', async interaction => {
 
     if (nome === 'resume') {
       fila.node.resume();
-      return interaction.reply('▶️ Música a continuar!');
+      return interaction.reply('▶️ Música retomada!');
     }
 
     if (nome === 'skip') {
@@ -178,34 +202,39 @@ client.on('interactionCreate', async interaction => {
     }
 
     if (nome === 'stop') {
-      fila.delete();
+      await fila.delete();
       return interaction.reply('⏹️ Reprodução encerrada!');
     }
 
     if (nome === 'queue') {
       const musicas = fila.tracks.toArray();
+
       const lista = musicas.slice(0, 10)
         .map((m, i) => `${i + 1}. ${m.title}`)
         .join('\n');
 
-      return interaction.reply(`🎶 **Fila de Reprodução**\n${lista || 'Sem próximas músicas.'}`);
+      return interaction.reply(
+        `🎶 **Fila de reprodução**\n${lista || 'Sem próximas músicas.'}`
+      );
     }
 
     if (nome === 'nowplaying') {
       return interaction.reply(
-        `🎧 A tocar agora: **${fila.currentTrack?.title || 'Desconhecida'}**`
+        `🎧 Tocando agora: **${fila.currentTrack?.title || 'Desconhecida'}**`
       );
     }
 
     if (nome === 'volume') {
       const valor = interaction.options.getInteger('valor');
       fila.node.setVolume(valor);
-      return interaction.reply(`🔊 Volume ajustado para: ${valor}%`);
+
+      return interaction.reply(`🔊 Volume ajustado para ${valor}%`);
     }
   } catch (e) {
-    console.error('Erro no comando:', e);
+    console.error('❌ Erro no comando:', e);
 
-    const mensagem = '❌ Erro ao processar a música. Tente pesquisar pelo nome exato (ex: `/play DJ Arana`).';
+    const mensagem =
+      '❌ Não consegui processar a música. Tente pesquisar pelo nome exato.';
 
     if (interaction.deferred || interaction.replied) {
       return interaction.editReply(mensagem).catch(() => {});
@@ -218,4 +247,9 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-client.login(process.env.DISCORD_TOKEN);
+// Ligar o bot
+if (!process.env.DISCORD_TOKEN) {
+  console.error('❌ DISCORD_TOKEN não foi configurado no arquivo .env!');
+} else {
+  client.login(process.env.DISCORD_TOKEN);
+}
