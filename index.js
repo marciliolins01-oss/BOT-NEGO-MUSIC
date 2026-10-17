@@ -107,6 +107,7 @@ const comandos = [
 // Inicialização
 client.once('ready', async () => {
   console.log(`🎵 NEGO MUSIC ligado como ${client.user.tag}`);
+  console.log('TESTE NOVO INDEX - NEGO MUSIC');
 
   // Carregar os extratores
   try {
