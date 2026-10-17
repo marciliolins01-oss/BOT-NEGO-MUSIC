@@ -1,264 +1,269 @@
-
-const {
-  Client,
-  GatewayIntentBits,
-  REST,
-  Routes,
-  SlashCommandBuilder
-} = require('discord.js');
-
-const { Player, useQueue } = require('discord-player');
-require('@discord-player/extractor');
-require('dotenv').config();
+const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { 
+  joinVoiceChannel, 
+  createAudioPlayer, 
+  createAudioResource, 
+  AudioPlayerStatus 
+} = require('@discordjs/voice');
+const play = require('play-dl');
 
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildVoiceStates
+    GatewayIntentBits.GuildVoiceStates,
+    GatewayIntentBits.GuildMessages,
+    GatewayIntentBits.MessageContent
   ]
 });
 
-const player = new Player(client);
+const PREFIX = '!';
+const queue = new Map();
 
-const comandos = [
-  new SlashCommandBuilder()
-    .setName('play')
-    .setDescription('Toca uma música')
-    .addStringOption(option =>
-      option.setName('musica')
-        .setDescription('Nome ou link da música')
-        .setRequired(true)
-    ),
+client.once('ready', () => {
+  console.log(`🤖 Bot online como: \${client.user.tag}`);
+});
 
-  new SlashCommandBuilder()
-    .setName('pause')
-    .setDescription('Pausa a música'),
+client.on('messageCreate', async (message) => {
+  if (message.author.bot || !message.content.startsWith(PREFIX)) return;
 
-  new SlashCommandBuilder()
-    .setName('resume')
-    .setDescription('Continua a música'),
+  const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+  const command = args.shift().toLowerCase();
 
-  new SlashCommandBuilder()
-    .setName('skip')
-    .setDescription('Pula a música'),
+  const serverQueue = queue.get(message.guild.id);
 
-  new SlashCommandBuilder()
-    .setName('stop')
-    .setDescription('Para a música'),
+  switch (command) {
+    case 'play':
+    case 'p':
+      executePlay(message, args, serverQueue);
+      break;
+    case 'skip':
+    case 's':
+      skipSong(message, serverQueue);
+      break;
+    case 'pause':
+      pauseSong(message, serverQueue);
+      break;
+    case 'resume':
+      resumeSong(message, serverQueue);
+      break;
+    case 'stop':
+    case 'leave':
+      stopBot(message, serverQueue);
+      break;
+    case 'queue':
+    case 'q':
+      showQueue(message, serverQueue);
+      break;
+  }
+});
 
-  new SlashCommandBuilder()
-    .setName('queue')
-    .setDescription('Mostra a fila de músicas'),
-
-  new SlashCommandBuilder()
-    .setName('nowplaying')
-    .setDescription('Mostra a música atual'),
-
-  new SlashCommandBuilder()
-    .setName('volume')
-    .setDescription('Altera o volume')
-    .addIntegerOption(option =>
-      option.setName('valor')
-        .setDescription('Volume de 1 a 100')
-        .setMinValue(1)
-        .setMaxValue(100)
-        .setRequired(true)
-    )
-].map(comando => comando.toJSON());
-
-async function registrarComandos() {
-  if (!process.env.DISCORD_TOKEN || !process.env.CLIENT_ID) {
-    throw new Error('Faltam DISCORD_TOKEN ou CLIENT_ID nas variáveis de ambiente.');
+async function executePlay(message, args, serverQueue) {
+  const voiceChannel = message.member.voice.channel;
+  if (!voiceChannel) {
+    return message.reply('❌ Você precisa estar em um canal de voz para tocar música!');
   }
 
-  const rest = new REST({ version: '10' })
-    .setToken(process.env.DISCORD_TOKEN);
+  const permissions = voiceChannel.permissionsFor(message.client.user);
+  if (!permissions.has('Connect') || !permissions.has('Speak')) {
+    return message.reply('❌ Preciso de permissões para conectar e falar no seu canal de voz!');
+  }
 
-  const rota = process.env.GUILD_ID
-    ? Routes.applicationGuildCommands(
-        process.env.CLIENT_ID,
-        process.env.GUILD_ID
-      )
-    : Routes.applicationCommands(process.env.CLIENT_ID);
+  const query = args.join(' ');
+  if (!query) {
+    return message.reply('❌ Forneça o nome ou o link da música que deseja ouvir!');
+  }
 
-  await rest.put(rota, { body: comandos });
-  console.log('✅ Comandos registrados no Discord!');
-}
-
-client.once('ready', async () => {
-  console.log(`🎵 NEGO MUSIC ligado como ${client.user.tag}`);
-
+  let songInfo;
   try {
-    await player.extractors.loadDefault();
-    console.log('✅ Extratores carregados!');
-    console.log(`📦 Total de extratores: ${player.extractors.store.size}`);
-  } catch (erro) {
-    console.error('❌ Erro ao carregar extratores:', erro);
+    const ytSearch = await play.search(query, { limit: 1 });
+    if (!ytSearch || ytSearch.length === 0) {
+      return message.reply('❌ Nenhuma música foi encontrada com essa busca.');
+    }
+    songInfo = ytSearch[0];
+  } catch (error) {
+    console.error(error);
+    return message.reply('⚠️ Ocorreu um erro ao buscar a música.');
   }
-});
 
-player.events.on('playerStart', (queue, track) => {
-  const canal = queue.metadata?.channel;
+  const song = {
+    title: songInfo.title,
+    url: songInfo.url,
+    duration: songInfo.durationRaw,
+    thumbnail: songInfo.thumbnails[0]?.url
+  };
 
-  if (canal) {
-    canal.send(`🎶 Tocando agora: **${track.title}**`)
-      .catch(() => {});
-  }
-});
-
-player.events.on('error', (queue, erro) => {
-  console.error('❌ Erro na fila:', erro);
-});
-
-player.events.on('playerError', (queue, erro) => {
-  console.error('❌ Erro ao reproduzir música:', erro);
-  queue.metadata?.channel?.send(
-    '❌ Não consegui reproduzir essa música. Tenta outra ou usa um link diferente.'
-  ).catch(() => {});
-});
-
-client.on('interactionCreate', async interaction => {
-  if (!interaction.isChatInputCommand()) return;
-
-  try {
-    const { commandName, guild, member, channel } = interaction;
-
-    if (!guild) {
-      return interaction.reply({
-        content: '❌ Usa esse comando dentro de um servidor.',
-        ephemeral: true
-      });
-    }
-
-    if (commandName === 'play') {
-      const musica = interaction.options.getString('musica', true);
-      const canalVoz = member.voice?.channel;
-
-      if (!canalVoz) {
-        return interaction.reply({
-          content: '🔊 Entra primeiro em um canal de voz!',
-          ephemeral: true
-        });
-      }
-
-      await interaction.deferReply();
-
-      const consulta = /^https?:\/\//i.test(musica)
-        ? musica
-        : `ytsearch:${musica}`;
-
-      await player.play(canalVoz, consulta, {
-        nodeOptions: {
-          metadata: { channel },
-          leaveOnEmpty: true,
-          leaveOnEmptyCooldown: 300000,
-          leaveOnEnd: true,
-          leaveOnEndCooldown: 15000,
-          leaveOnStop: true,
-          volume: 80
-        }
-      });
-
-      return interaction.editReply(`🔎 Procurando: **${musica}**`);
-    }
-
-    const fila = useQueue(guild.id);
-
-    if (!fila) {
-      return interaction.reply({
-        content: '❌ Não tem nenhuma música tocando agora.',
-        ephemeral: true
-      });
-    }
-
-    switch (commandName) {
-      case 'pause': {
-        if (!fila.node.isPlaying()) {
-          return interaction.reply('❌ Não tem música tocando.');
-        }
-
-        fila.node.pause();
-        return interaction.reply('⏸️ Música pausada!');
-      }
-
-      case 'resume': {
-        if (!fila.node.isPaused()) {
-          return interaction.reply('❌ A música não está pausada.');
-        }
-
-        fila.node.resume();
-        return interaction.reply('▶️ Música retomada!');
-      }
-
-      case 'skip': {
-        if (!fila.currentTrack) {
-          return interaction.reply('❌ Não há música para pular.');
-        }
-
-        fila.node.skip();
-        return interaction.reply('⏭️ Música pulada!');
-      }
-
-      case 'stop': {
-        fila.delete();
-        return interaction.reply('⏹️ Reprodução encerrada!');
-      }
-
-      case 'queue': {
-        const atual = fila.currentTrack?.title || 'Nenhuma';
-        const proximas = fila.tracks.toArray().slice(0, 10);
-
-        const lista = proximas.length
-          ? proximas.map((track, i) => `${i + 1}. ${track.title}`).join('\n')
-          : 'Não há próximas músicas.';
-
-        return interaction.reply(
-          `🎵 **Tocando:** ${atual}\n\n**Próximas músicas:**\n${lista}`
-        );
-      }
-
-      case 'nowplaying': {
-        const atual = fila.currentTrack;
-
-        if (!atual) {
-          return interaction.reply('❌ Nenhuma música está tocando.');
-        }
-
-        return interaction.reply(`🎶 **Tocando agora:** ${atual.title}`);
-      }
-
-      case 'volume': {
-        const valor = interaction.options.getInteger('valor', true);
-        fila.node.setVolume(valor);
-        return interaction.reply(`🔊 Volume ajustado para **${valor}%**.`);
-      }
-    }
-  } catch (erro) {
-    console.error('❌ Erro no comando:', erro);
-
-    const mensagem = {
-      content: '❌ Ocorreu um erro. Confere o console da hospedagem.',
-      ephemeral: true
+  if (!serverQueue) {
+    const queueConstruct = {
+      textChannel: message.channel,
+      voiceChannel: voiceChannel,
+      connection: null,
+      player: createAudioPlayer(),
+      songs: [],
+      playing: true
     };
 
-    if (interaction.deferred) {
-      await interaction.editReply(mensagem.content).catch(() => {});
-    } else if (interaction.replied) {
-      await interaction.followUp(mensagem).catch(() => {});
-    } else {
-      await interaction.reply(mensagem).catch(() => {});
-    }
-  }
-});
+    queue.set(message.guild.id, queueConstruct);
+    queueConstruct.songs.push(song);
 
-async function iniciar() {
-  try {
-    await registrarComandos();
-    await client.login(process.env.DISCORD_TOKEN);
-  } catch (erro) {
-    console.error('❌ Não foi possível iniciar o bot:', erro);
-    process.exitCode = 1;
+    try {
+      const connection = joinVoiceChannel({
+        channelId: voiceChannel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+      });
+
+      queueConstruct.connection = connection;
+      connection.subscribe(queueConstruct.player);
+
+      queueConstruct.player.on(AudioPlayerStatus.Idle, () => {
+        queueConstruct.songs.shift();
+        playNextSong(message.guild.id);
+      });
+
+      queueConstruct.player.on('error', (error) => {
+        console.error('Erro na reprodução:', error);
+        queueConstruct.songs.shift();
+        playNextSong(message.guild.id);
+      });
+
+      playNextSong(message.guild.id);
+
+    } catch (err) {
+      console.error(err);
+      queue.delete(message.guild.id);
+      return message.reply('⚠️ Não foi possível conectar ao canal de voz.');
+    }
+  } else {
+    serverQueue.songs.push(song);
+    
+    const embed = new EmbedBuilder()
+      .setColor('#5865F2')
+      .setTitle('✅ Adicionado à Fila')
+      .setDescription(`[${song.title}](${song.url})`)
+      .addFields({ name: 'Duração', value: song.duration, inline: true })
+      .setThumbnail(song.thumbnail);
+
+    return message.channel.send({ embeds: [embed] });
   }
 }
 
-iniciar();
+async function playNextSong(guildId) {
+  const serverQueue = queue.get(guildId);
+
+  if (!serverQueue) return;
+
+  if (serverQueue.songs.length === 0) {
+    if (serverQueue.connection) {
+      serverQueue.connection.destroy();
+    }
+    queue.delete(guildId);
+    return serverQueue.textChannel.send('🎶 A fila acabou. Desconectando do canal de voz.');
+  }
+
+  const song = serverQueue.songs[0];
+
+  try {
+    const stream = await play.stream(song.url);
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type
+    });
+
+    serverQueue.player.play(resource);
+
+    const embed = new EmbedBuilder()
+      .setColor('#57F287')
+      .setTitle('🎵 Tocando Agora')
+      .setDescription(`[${song.title}](${song.url})`)
+      .addFields({ name: 'Duração', value: song.duration, inline: true })
+      .setThumbnail(song.thumbnail);
+
+    serverQueue.textChannel.send({ embeds: [embed] });
+  } catch (error) {
+    console.error(error);
+    serverQueue.textChannel.send(`⚠️ Erro ao tentar reproduzir **\${song.title}**. Pulando...`);
+    serverQueue.songs.shift();
+    playNextSong(guildId);
+  }
+}
+
+function skipSong(message, serverQueue) {
+  if (!message.member.voice.channel) {
+    return message.reply('❌ Você precisa estar em um canal de voz para pular a música!');
+  }
+  if (!serverQueue || serverQueue.songs.length === 0) {
+    return message.reply('❌ Não há nenhuma música tocando para pular.');
+  }
+
+  serverQueue.player.stop();
+  message.reply('⏭️ Música pulada!');
+}
+
+function pauseSong(message, serverQueue) {
+  if (!message.member.voice.channel) {
+    return message.reply('❌ Você precisa estar no canal de voz!');
+  }
+  if (!serverQueue) {
+    return message.reply('❌ Não há nenhuma música tocando no momento.');
+  }
+
+  if (serverQueue.player.pause()) {
+    message.reply('⏸️ Música pausada.');
+  } else {
+    message.reply('⚠️ A música já está pausada ou não pode ser pausada.');
+  }
+}
+
+function resumeSong(message, serverQueue) {
+  if (!message.member.voice.channel) {
+    return message.reply('❌ Você precisa estar no canal de voz!');
+  }
+  if (!serverQueue) {
+    return message.reply('❌ Não há nenhuma música tocando no momento.');
+  }
+
+  if (serverQueue.player.unpause()) {
+    message.reply('▶️ Música retomada.');
+  } else {
+    message.reply('⚠️ A música não está pausada.');
+  }
+}
+
+function stopBot(message, serverQueue) {
+  if (!message.member.voice.channel) {
+    return message.reply('❌ Você precisa estar no canal de voz para parar o bot!');
+  }
+
+  if (!serverQueue) {
+    return message.reply('❌ O bot não está tocando nada no momento.');
+  }
+
+  serverQueue.songs = [];
+  if (serverQueue.connection) {
+    serverQueue.connection.destroy();
+  }
+  queue.delete(message.guild.id);
+  message.reply('👋 Reprodução interrompida e desconectado.');
+}
+
+function showQueue(message, serverQueue) {
+  if (!serverQueue || serverQueue.songs.length === 0) {
+    return message.reply('📜 A fila está vazia no momento.');
+  }
+
+  let queueList = serverQueue.songs
+    .slice(0, 10)
+    .map((song, index) => `\${index === 0 ? '▶️ **Tocando agora:**' : `**${index}.**`} \${song.title} \`(${song.duration})\``)
+    .join('\n');
+
+  const embed = new EmbedBuilder()
+    .setColor('#FEE75C')
+    .setTitle('📜 Fila de Reprodução')
+    .setDescription(queueList)
+    .setFooter({ text: `Total de músicas na fila: ${serverQueue.songs.length}` });
+
+  message.channel.send({ embeds: [embed] });
+}
+
+const TOKEN = 'SEU_TOKEN_AQUI';
+
+client.login(TOKEN);
