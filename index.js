@@ -86,11 +86,16 @@ client.once('ready', async () => {
   console.log(`🎵 NEGO MUSIC ligado como ${client.user.tag}`);
 
   try {
-    await player.extractors.loadMulti(DefaultExtractors);
-    console.log('🎶 Extratores carregados com sucesso!');
-  } catch (e) {
-    console.error('Erro ao carregar extratores:', e);
-  }
+    try {
+  console.log('Extratores disponíveis:', DefaultExtractors.length);
+
+  const resultado = await player.extractors.loadMulti(DefaultExtractors);
+
+  console.log('Resultado do carregamento:', resultado);
+  console.log('Total registrado:', player.extractors.store.size);
+} catch (e) {
+  console.error('Erro ao carregar extratores:', e);
+}
 
   try {
     const rest = new REST({ version: '10' }).setToken(process.env.DISCORD_TOKEN);
